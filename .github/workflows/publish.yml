@@ -1,0 +1,77 @@
+# Публикация сайта «Зелёная папка» на GitHub Pages.
+# Исходники лежат в закрытом репозитории monster-51/Green_site; здесь только сборка и публикация.
+# Ключ SOURCE_DEPLOY_KEY (секрет) — закрытая часть ключа развёртывания «только чтение» от Green_site.
+# Адрес сайта задаётся переменными репозитория SITE_URL и BASE_PATH (Settings → Secrets and variables → Actions → Variables).
+name: Публикация сайта
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  # Каждый час: подхватить изменения из Green_site и обновить ленту новостей
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  SITE_URL: ${{ vars.SITE_URL || 'https://monster-51.github.io' }}
+  BASE_PATH: ${{ vars.BASE_PATH || '/greenfolder-site' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Взять исходники из Green_site
+        uses: actions/checkout@v4
+        with:
+          repository: monster-51/Green_site
+          ref: main
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Собрать новости
+        run: |
+          BASE="${BASE_PATH%/}"
+          # Прошлая лента: с текущего адреса сайта, а при первом запуске — со старого адреса
+          for u in "$SITE_URL$BASE/news.json" "https://monster-51.github.io/Green_site/news.json"; do
+            if curl -sfL -o /dev/null "$u"; then export PREVIOUS_NEWS_URL="$u"; break; fi
+          done
+          echo "Прошлая лента: ${PREVIOUS_NEWS_URL:-нет}"
+          npm run news
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # GitHub отключает расписание в репозитории без коммитов через 60 дней; этот шаг продлевает его.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/publish.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -35,7 +35,8 @@ jobs:
         with:
           repository: monster-51/Green_site
           ref: main
-          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          # Временно: секрет сохранён под именем POEBENB; когда появится SOURCE_DEPLOY_KEY, второе имя можно убрать
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY || secrets.POEBENB }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:

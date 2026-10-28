@@ -47,8 +47,8 @@ jobs:
       - name: Собрать новости
         run: |
           BASE="${BASE_PATH%/}"
-          # Прошлая лента: с текущего адреса сайта, а при первом запуске — со старого адреса
-          for u in "$SITE_URL$BASE/news.json" "https://monster-51.github.io/Green_site/news.json"; do
+          # Прошлая лента: с адреса сайта; пока на домене нет сертификата — по http
+          for u in "$SITE_URL$BASE/news.json" "http://${SITE_URL#https://}$BASE/news.json" "https://monster-51.github.io/greenfolder-site/news.json"; do
             if curl -sfL -o /dev/null "$u"; then export PREVIOUS_NEWS_URL="$u"; break; fi
           done
           echo "Прошлая лента: ${PREVIOUS_NEWS_URL:-нет}"
